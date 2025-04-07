@@ -35,13 +35,15 @@ const AddTodoSchema = z.object({
     title: z
         .string({ required_error: 'Campo obligatorio' })
         .min(2, { message: 'Debe tener al menos 2 caracteres' })
-        .max(35, { message: 'Debe tener menos de 30 caracteres' }),
+        .max(35, { message: 'Debe tener menos de 35 caracteres' }),
     description: z
         .string()
-        .max(50, { message: 'Debe tener menos de 35 caracteres' })
+        .max(50, { message: 'Debe tener menos de 50 caracteres' })
         .optional(),
     endDate: z.string({ required_error: 'Debes seleccionar una fecha' }),
 });
+
+type AddTodoForm = z.infer<typeof AddTodoSchema>;
 
 export default function AddTodoModal({
     modalRef,
@@ -50,9 +52,6 @@ export default function AddTodoModal({
     modalRef: ForwardedRef<BottomSheetModal>;
     onSave: (todo: Todo) => void;
 }) {
-    //const [selectedDate, setSelectedDate] = useState<string>(
-    //    new Date().toISOString().split('T')[0]
-    //);
     const [selectedColor, setSelectedColor] = useState<string>('#FFB3BA');
 
     const {
@@ -60,14 +59,14 @@ export default function AddTodoModal({
         handleSubmit,
         reset,
         formState: { errors },
-    } = useForm<z.infer<typeof AddTodoSchema>>({
+    } = useForm<AddTodoForm>({
         resolver: zodResolver(AddTodoSchema),
         defaultValues: {
             endDate: new Date().toISOString().split('T')[0],
         },
     });
 
-    const onSubmit = async (data: z.infer<typeof AddTodoSchema>) => {
+    const onSubmit = async (data: AddTodoForm) => {
         Keyboard.dismiss();
         onSave({
             ...data,

@@ -6,6 +6,7 @@ import SplashScreen from '@/components/SplashScreen';
 import { useState } from 'react';
 import { StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import AuthProvider from '@/providers/AuthProvider';
 
 export default function RootLayout() {
     const [isAppReady, setIsAppReady] = useState(false);
@@ -22,16 +23,34 @@ export default function RootLayout() {
     }
 
     return (
-        <>
+        <AuthProvider>
             <GestureHandlerRootView>
                 <Stack>
                     <Stack.Screen
                         name="index"
                         options={{ headerShown: false }}
                     />
+                    <Stack.Screen
+                        name="(auth)/signin/index"
+                        options={{
+                            gestureEnabled: false,
+                            headerShown: false,
+                        }}
+                    />
+                    <Stack.Screen
+                        name="(auth)/signup/index"
+                        options={{
+                            gestureEnabled: false,
+                            headerShown: false,
+                        }}
+                    />
+                    <Stack.Screen
+                        name="+not-found"
+                        options={{ headerShown: false }}
+                    />
                 </Stack>
                 <StatusBar backgroundColor="#000" />
             </GestureHandlerRootView>
-        </>
+        </AuthProvider>
     );
 }
