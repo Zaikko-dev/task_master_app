@@ -5,6 +5,7 @@ import { useFonts } from 'expo-font';
 import SplashScreen from '@/components/SplashScreen';
 import { useState } from 'react';
 import { StatusBar } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
     const [isAppReady, setIsAppReady] = useState(false);
@@ -22,10 +23,15 @@ export default function RootLayout() {
 
     return (
         <>
-            <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-            </Stack>
-            <StatusBar backgroundColor="#dbeafe" />
+            <GestureHandlerRootView>
+                <Stack>
+                    <Stack.Screen
+                        name="index"
+                        options={{ headerShown: false }}
+                    />
+                </Stack>
+                <StatusBar backgroundColor="#000" />
+            </GestureHandlerRootView>
         </>
     );
 }

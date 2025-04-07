@@ -5,4 +5,5 @@ export type Todo = {
     endDate?: string;
     completed: boolean;
     completedAt?: string;
+    color?: string;
 };
