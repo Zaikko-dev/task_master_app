@@ -1,4 +1,3 @@
-import Header from '@/components/Header';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import lottie_todo from '@/assets/lotties/lottie_todo.json';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -15,19 +14,25 @@ import {
 import LottieView from 'lottie-react-native';
 import AddTodoModal from '@/components/AddTodoModal';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import getTodos, { updateTodo } from '@/api/todos';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { updateTodo, getTodosCompleted } from '@/api/todos';
+import { router } from 'expo-router';
 
-export default function Index() {
+// logica de esta vista generada con ayuda de la IA
+export default function Completed() {
     const queryClient = useQueryClient();
     const { data: todos } = useQuery({
-        queryKey: ['todos'],
-        queryFn: getTodos,
+        queryKey: ['completed-todos'],
+        queryFn: getTodosCompleted,
     });
     const modalRef = useRef<BottomSheetModal>(null);
     const [selectedTodo, setSelectedTodo] = useState<Todo | undefined>(
         undefined
     );
+
+    const handleGoBack = useCallback(() => {
+        router.replace('/');
+    }, []);
 
     const { mutate: toggleTodo } = useMutation({
         mutationFn: (todo: Todo) =>
@@ -36,6 +41,7 @@ export default function Index() {
                 completed: !todo.completed,
             }),
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['completed-todos'] });
             queryClient.invalidateQueries({ queryKey: ['todos'] });
         },
     });
@@ -44,11 +50,6 @@ export default function Index() {
         modalRef.current?.close();
         setSelectedTodo(undefined);
     };
-
-    const handleAddTodo = useCallback(() => {
-        setSelectedTodo(undefined);
-        modalRef.current?.present();
-    }, []);
 
     const handleEditTodo = useCallback((todo: Todo) => {
         setSelectedTodo(todo);
@@ -72,10 +73,10 @@ export default function Index() {
                     style={styles.lottie}
                 />
                 <Text className="text-2xl font-bold text-center text-gray-600">
-                    Aun no tienes tareas
+                    No hay tareas completadas
                 </Text>
                 <Text className="text-base font-medium text-center text-gray-400">
-                    Agrega tareas tocando el boton de abajo
+                    Las tareas que completes aparecerán aquí
                 </Text>
             </View>
         ),
@@ -111,11 +112,7 @@ export default function Index() {
                     }}
                 >
                     <MaterialIcons
-                        name={
-                            todo.completed
-                                ? 'check-circle'
-                                : 'radio-button-unchecked'
-                        }
+                        name="check-circle"
                         size={30}
                         color="black"
                     />
@@ -127,7 +124,13 @@ export default function Index() {
 
     return (
         <SafeAreaView className="flex-1 relative bg-white">
-            <Header />
+            <View className="flex-row items-center justify-between px-5 py-4 bg-blue-100">
+                <TouchableOpacity onPress={handleGoBack}>
+                    <Ionicons name="arrow-back" size={24} color="black" />
+                </TouchableOpacity>
+                <Text className="text-xl font-bold">Tareas Completadas</Text>
+                <View style={{ width: 24 }} />
+            </View>
 
             <FlatList
                 contentContainerStyle={{
@@ -139,15 +142,6 @@ export default function Index() {
                 renderItem={({ item }) => renderItem(item)}
                 ListEmptyComponent={renderEmptyList}
             />
-
-            <View className="absolute bottom-10 bg-transparent w-full justify-center items-center">
-                <TouchableOpacity
-                    className="rounded-full w-16 h-16 bg-[#3931AC] justify-center items-center"
-                    onPress={handleAddTodo}
-                >
-                    <MaterialIcons name="add" size={38} color="white" />
-                </TouchableOpacity>
-            </View>
 
             <AddTodoModal
                 modalRef={modalRef}

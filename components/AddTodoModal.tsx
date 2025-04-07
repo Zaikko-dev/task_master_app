@@ -6,7 +6,7 @@ import {
     BottomSheetModalProvider,
     BottomSheetView,
 } from '@gorhom/bottom-sheet';
-import { ForwardedRef, useCallback, useState } from 'react';
+import { ForwardedRef, useCallback, useEffect, useState } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
     Keyboard,
@@ -15,13 +15,17 @@ import {
     TouchableOpacity,
     TouchableWithoutFeedback,
     View,
+    Alert,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import uuid from 'react-native-uuid';
+import { createTodo, updateTodo, deleteTodo } from '@/api/todos';
 
+// logica de cambio de colores generada con ayuda de la IA
 const COLORS = [
     '#FFB3BA', // Rosa pastel
     '#B4D8E7', // Melocotón pastel
@@ -39,8 +43,11 @@ const AddTodoSchema = z.object({
     description: z
         .string()
         .max(50, { message: 'Debe tener menos de 50 caracteres' })
-        .optional(),
-    endDate: z.string({ required_error: 'Debes seleccionar una fecha' }),
+        .optional()
+        .nullable(),
+    end_date: z
+        .string({ required_error: 'Debes seleccionar una fecha' })
+        .nullable(),
 });
 
 type AddTodoForm = z.infer<typeof AddTodoSchema>;
@@ -48,11 +55,49 @@ type AddTodoForm = z.infer<typeof AddTodoSchema>;
 export default function AddTodoModal({
     modalRef,
     onSave,
+    todoToEdit,
 }: {
     modalRef: ForwardedRef<BottomSheetModal>;
-    onSave: (todo: Todo) => void;
+    onSave: () => void;
+    todoToEdit?: Todo;
 }) {
-    const [selectedColor, setSelectedColor] = useState<string>('#FFB3BA');
+    const queryClient = useQueryClient();
+    const { mutate: saveTodo, isPending: isCreating } = useMutation({
+        mutationFn: (todo: Todo) => createTodo(todo),
+        onSuccess: () => {
+            onSave();
+            queryClient.invalidateQueries({ queryKey: ['todos'] });
+        },
+        onError: (error) => {
+            console.log(error);
+        },
+    });
+
+    const { mutate: editTodo, isPending: isUpdating } = useMutation({
+        mutationFn: (todo: Todo) => updateTodo(todo),
+        onSuccess: () => {
+            onSave();
+            queryClient.invalidateQueries({ queryKey: ['todos'] });
+        },
+        onError: (error) => {
+            console.log(error);
+        },
+    });
+
+    const { mutate: removeTodo, isPending: isDeleting } = useMutation({
+        mutationFn: (todoId: string) => deleteTodo(todoId),
+        onSuccess: () => {
+            onSave();
+            queryClient.invalidateQueries({ queryKey: ['todos'] });
+        },
+        onError: (error) => {
+            console.log(error);
+        },
+    });
+
+    const [selectedColor, setSelectedColor] = useState<string>(
+        todoToEdit?.color || '#FFB3BA'
+    );
 
     const {
         control,
@@ -62,18 +107,65 @@ export default function AddTodoModal({
     } = useForm<AddTodoForm>({
         resolver: zodResolver(AddTodoSchema),
         defaultValues: {
-            endDate: new Date().toISOString().split('T')[0],
+            title: todoToEdit?.title || '',
+            description: todoToEdit?.description || null,
+            end_date:
+                todoToEdit?.end_date || new Date().toISOString().split('T')[0],
         },
     });
 
+    useEffect(() => {
+        if (todoToEdit) {
+            reset({
+                title: todoToEdit.title,
+                description: todoToEdit.description,
+                end_date: todoToEdit.end_date,
+            });
+            setSelectedColor(todoToEdit.color || '#FFB3BA');
+        }
+    }, [todoToEdit, reset]);
+
     const onSubmit = async (data: AddTodoForm) => {
         Keyboard.dismiss();
-        onSave({
-            ...data,
-            id: uuid.v4(),
-            completed: false,
-            color: selectedColor,
-        });
+        if (todoToEdit) {
+            editTodo({
+                ...todoToEdit,
+                ...data,
+                description: data.description || null,
+                color: selectedColor,
+            });
+        } else {
+            saveTodo({
+                ...data,
+                description: data.description || null,
+                color: selectedColor,
+                completed: false,
+                id: uuid.v4().toString(),
+                user_id: null,
+            });
+        }
+    };
+
+    const handleDelete = () => {
+        if (!todoToEdit) return;
+
+        Alert.alert(
+            'Eliminar tarea',
+            '¿Estás seguro de que quieres eliminar esta tarea?',
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Eliminar',
+                    style: 'destructive',
+                    onPress: () => {
+                        removeTodo(todoToEdit.id);
+                    },
+                },
+            ]
+        );
     };
 
     const renderBackdrop = useCallback(
@@ -110,21 +202,38 @@ export default function AddTodoModal({
                     >
                         <View className="flex-row justify-between items-center">
                             <Text className="font-bold text-2xl text-black">
-                                Agrega una tarea
+                                {todoToEdit ? 'Editar tarea' : 'Agregar tarea'}
                             </Text>
-                            <TouchableOpacity
-                                className=" flex-row gap-2 h-12 justify-center items-center rounded-lg bg-gray-500 px-3"
-                                onPress={handleSubmit(onSubmit)}
-                            >
-                                <MaterialIcons
-                                    name="save"
-                                    size={24}
-                                    color="white"
-                                />
-                                <Text className="font-bold text-xl text-white">
-                                    Crear
-                                </Text>
-                            </TouchableOpacity>
+
+                            <View className="flex-row gap-3">
+                                {todoToEdit && (
+                                    <TouchableOpacity
+                                        className="justify-center items-center h-12 w-12 rounded-lg bg-red-600"
+                                        onPress={handleDelete}
+                                        disabled={isDeleting}
+                                    >
+                                        <MaterialIcons
+                                            name="delete"
+                                            size={24}
+                                            color="white"
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    disabled={isCreating || isUpdating}
+                                    className="flex-row gap-2 h-12 justify-center items-center rounded-lg bg-gray-500 px-3"
+                                    onPress={handleSubmit(onSubmit)}
+                                >
+                                    <MaterialIcons
+                                        name="save"
+                                        size={24}
+                                        color="white"
+                                    />
+                                    <Text className="font-bold text-xl text-white">
+                                        {todoToEdit ? 'Actualizar' : 'Crear'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         <Controller
@@ -138,6 +247,7 @@ export default function AddTodoModal({
                                         placeholder="Titulo de la tarea *"
                                         placeholderTextColor="#9c9c9c"
                                         className="bg-gray-100 rounded-xl h-14 p-2 text-lg"
+                                        editable={!isCreating && !isUpdating}
                                         style={{
                                             borderWidth: 2,
                                             borderColor: errors.title
@@ -160,11 +270,12 @@ export default function AddTodoModal({
                             render={({ field: { onChange, value } }) => (
                                 <View className="relative">
                                     <TextInput
-                                        value={value}
+                                        value={value || ''}
                                         onChangeText={onChange}
                                         placeholder="Descripcion de la tarea"
                                         placeholderTextColor="#9c9c9c"
                                         className="bg-gray-100 rounded-xl h-14 p-2 text-lg"
+                                        editable={!isCreating && !isUpdating}
                                         style={{
                                             borderWidth: 2,
                                             borderColor: errors.description
@@ -184,6 +295,7 @@ export default function AddTodoModal({
                         <View className="flex-row gap-4 justify-center items-center rounded-2xl p-4 bg-gray-100">
                             {COLORS.map((color) => (
                                 <TouchableOpacity
+                                    disabled={isCreating || isUpdating}
                                     key={color}
                                     onPress={() => setSelectedColor(color)}
                                     style={{
@@ -202,7 +314,7 @@ export default function AddTodoModal({
 
                         <Controller
                             control={control}
-                            name="endDate"
+                            name="end_date"
                             render={({ field: { onChange, value } }) => (
                                 <View className="bg-gray-100 rounded-2xl p-4">
                                     <View className="flex-row justify-between items-center">
@@ -216,18 +328,19 @@ export default function AddTodoModal({
                                                 Fecha limite :
                                             </Text>
                                         </View>
-                                        <Text className="font-semibold text-lg text-[#666]">
-                                            {value}
+                                        <Text className="font-semibold text-lg text-[#666] italic">
+                                            {value?.slice(0, 10)}
                                         </Text>
                                     </View>
                                     <Calendar
+                                        editable={!isCreating && !isUpdating}
                                         onDayPress={(day: {
                                             dateString: string;
                                         }) => {
                                             onChange(day.dateString);
                                         }}
                                         markedDates={{
-                                            [value]: {
+                                            [value || '']: {
                                                 selected: true,
                                                 selectedColor: selectedColor,
                                             },
